@@ -25,3 +25,6 @@ This software is published under the [Academic Free License 3.0](https://opensou
 
 ## Contributing
 thirty bees modules are open-source extensions to the thirty bees e-commerce solution. Everyone is welcome and even encouraged to contribute with their own improvements.
+
+## !Disclaimer!
+Even though we have tested the safety of this software, using this plugin will be at your own risk and Linuxweb will not be held responsible in a case of lost data or any other damage.
