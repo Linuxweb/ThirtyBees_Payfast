@@ -8,7 +8,7 @@
  * 
  * @author     Ruben Venter (ruben@linuxweb.co.za)
  * @version    1.0.0
- * @date       23/10/2025
+ * @date       13/07/2026
  *
  * @link       https://github.com/Linuxweb/Payfast-ThirtyBees/
  */
@@ -43,6 +43,6 @@ class PayfastSuccessModuleFrontController extends ModuleFrontController
             'message' => 'Payment received. Order is being processed.',
         ]);
 
-        $this->setTemplate('module:payfast/views/templates/front/success.tpl');
+        $this->setTemplate('success.tpl');
     }
 }
