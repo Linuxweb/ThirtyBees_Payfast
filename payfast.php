@@ -9,7 +9,7 @@
  * 
  * @author     Ruben Venter (ruben@linuxweb.co.za)
  * @version    1.0.0
- * @date       23/10/2025
+ * @date       13/07/2026
  *
  * @link       https://github.com/Linuxweb/Payfast-ThirtyBees/
  */
@@ -60,12 +60,8 @@ class Payfast extends PaymentModule
     public function uninstall()
     {
         unlink(dirname(__FILE__).'/../../cache/class_index.php');
-        return parent::uninstall() 
-            && Configuration::deleteByName('payment')
-            && Configuration::deleteByName('paymentReturn')
-            && Configuration::deleteByName('header')
+        return parent::uninstall()
             && $this->deleteConfig(); //calls the config deletion
-
     }
 
     //Initialize and Delete the config for the module (pretty much everything you see in the back office)
