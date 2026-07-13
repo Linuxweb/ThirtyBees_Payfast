@@ -1,30 +1,71 @@
-# Payfast Payment Gateway Module
+# Google Analytics 4 Module for ThirtyBees
+A simple module that adds Google Analytics 4 tracking to your ThirtyBees store, including automatic purchase tracking.
 
-## About
-The Payfast Payment Gateway Module allows you to conduct payments using the PayFast Payment Gateway. This module allows payments with many different payment methods (See at: https://payfast.io/features/payment-methods/)
+Installation
 
-It is reccomended to download this module from the ThirtyBees Marketplace (https://store.thirtybees.com/shop-modules/payment/payfast-payment-gateway). If you have downloaded it from GitHub, you should rename the module folder to "payfast" for the module to work. 
+    1. Upload the module to /modules/analytics4/
+    2. Go to Modules → Modules & Services in your admin panel
+    3. Find "Google Analytics 4" and click Install
 
-## Setup
-### Setting up the PayFast module
-To use this module on your site, you need to create a merchant account on payfast (https://registration.payfast.io/). 
+Configuration
 
-- After creating your account, you will need to access your merchant details (MerchantID, MerchantKey and Passphrase (Optional)).
-- Enter these details in the Configuration of the module.
-- You're all set up!
+    1. Click Configure on the module
+    2. Enter your GA4 Measurement ID
+    3. Click Save
 
-NOTE: Split payments, multiple currencies support and recurring payments are still under development (looking to release in v2.0). To enable them, uncomment the code in payfast.php.
+Finding Your GA4 Measurement ID
 
-### Multi-Currency
-This module has the ability to execute payments with any currency. Our module automatically retrieves the conversion rate of any currency and converts it to ZAR, since that is the only currency PayFast allows.
+    1. Log into Google Analytics
+    2. Click Admin (gear icon, bottom left)
+    3. In the Property column, click Data Streams
+    4. Click your web data stream
+    5. Copy the Measurement ID (looks like G-XXXXXXXXX)
 
-NOTE: It is reccomended to set up a crontab for ThirtyBees to retrieve the latest conversion rates at least once a day (Back Office -> Localisation -> Currencies).
+What Gets Tracked
 
-## License
-This software is published under the [Academic Free License 3.0](https://opensource.org/licenses/afl-3.0.php)
+    - Page views on all pages
+    - Purchase events when customers complete orders
+    - Product details (name, price, quantity)
+    - Transaction totals and currency
 
-## Contributing
-thirty bees modules are open-source extensions to the thirty bees e-commerce solution. Everyone is welcome and even encouraged to contribute with their own improvements.
+# Verifying It Works
+Check Installation
 
-## !Disclaimer!
+Visit your store and view the page source (right-click → View Page Source). Search for your Measurement ID - you should see it loaded in a script tag.
+Check Purchase Tracking
+
+    1. Place a test order
+    2. On the order confirmation page, press F12 to open browser console
+    3. Under the Network tab, filter for "collect" and confirm a request fires with en=purchase
+
+Check in Google Analytics
+
+    1. Go to Reports → Realtime in Google Analytics
+    2. Place a test order
+    3. Within 30 seconds, you should see the purchase event
+
+Purchase data appears in standard reports after 24-48 hours under Reports → Monetization → Ecommerce purchases.
+
+# Troubleshooting
+Events not showing in GA4?
+
+    - Verify your Measurement ID is correct (format: G-XXXXXXXXX)
+    - Check that it's not UA-XXXXXXX (that's Universal Analytics, not GA4)
+    - Test in incognito mode (ad blockers can block tracking)
+
+No console message on order confirmation?
+
+    - Clear ThirtyBees cache in Advanced Parameters → Performance
+    - Check your PHP error logs
+
+# Support
+
+Copyright (c) 2026 LinuxISP (Pty) Ltd
+Author
+
+Ruben Venter - Linuxweb
+ruben@linuxweb.co.za
+
+
+# !Disclaimer!
 Even though we have tested the safety of this software, using this plugin will be at your own risk and Linuxweb will not be held responsible in a case of lost data or any other damage.
