@@ -8,7 +8,7 @@
  * 
  * @author     Ruben Venter (ruben@linuxweb.co.za)
  * @version    1.0.0
- * @date       23/10/2025
+ * @date       13/07/2026
  *
  * @link       https://github.com/Linuxweb/Payfast-ThirtyBees/
  */
@@ -38,19 +38,20 @@ class PayfastIpnModuleFrontController extends ModuleFrontController
             exit;
         }
 
-        // booleans for all the security checks
-        $bSigPassed = false;
+        // Security check flags
+        $bSigPassed    = false;
         $bDomainPassed = false;
         $bComparePassed = false;
         $bServerPassed = false;
 
-        // Get passphrase from configuration 
+        // ----------------------------------------------------------------
+        // 1. Signature check
+        // ----------------------------------------------------------------
         $pfPassphrase = Configuration::get('PAYFAST_PASSPHRASE', null);
         if ($pfPassphrase === false) {
             $pfPassphrase = null;
         }
 
-        // Build parameter string (exclude signature) using POST order
         $pfParamString = '';
         foreach ($pfData as $key => $val) {
             if ($key === 'signature') {
@@ -60,23 +61,23 @@ class PayfastIpnModuleFrontController extends ModuleFrontController
         }
         $pfParamString = rtrim($pfParamString, '&');
 
-        // Append passphrase if set
         $tempParamString = $pfParamString;
         if (!empty($pfPassphrase)) {
             $tempParamString .= '&passphrase=' . urlencode($pfPassphrase);
         }
 
-        // Calculate signature
         $calculatedSignature = md5($tempParamString);
-        $receivedSignature = isset($pfData['signature']) ? $pfData['signature'] : '';
+        $receivedSignature   = isset($pfData['signature']) ? $pfData['signature'] : '';
         $bSigPassed = ($receivedSignature === $calculatedSignature);
 
-        // Validate remote IP against PayFast hostnames
-        $pfMode = Configuration::get('PAYFAST_MODE', 'sandbox'); // default sandbox
+        // ----------------------------------------------------------------
+        // 2. Domain / IP check
+        // ----------------------------------------------------------------
+        $pfMode = Configuration::get('PAYFAST_MODE', 'sandbox');
         $pfHost = ($pfMode === 'live') ? 'www.payfast.co.za' : 'sandbox.payfast.co.za';
 
         $validHosts = ['www.payfast.co.za', 'sandbox.payfast.co.za', 'w1w.payfast.co.za', 'w2w.payfast.co.za'];
-        $validIps = [];
+        $validIps   = [];
         foreach ($validHosts as $host) {
             $ips = @gethostbynamel($host);
             if ($ips !== false) {
@@ -85,30 +86,57 @@ class PayfastIpnModuleFrontController extends ModuleFrontController
         }
         $validIps = array_unique($validIps);
 
-        $remoteIp = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
+        $remoteIp     = isset($_SERVER['REMOTE_ADDR']) ? $_SERVER['REMOTE_ADDR'] : '';
         $bDomainPassed = in_array($remoteIp, $validIps, true);
 
-        // Compare amount: ensure posted amount matches order amount (you must fetch the order/cart)
-        // Example: m_payment_id is our cart/order id; fetch and compare
+        // ----------------------------------------------------------------
+        // 3. Amount comparison
+        // getOrderTotal() returns the total in the cart's own currency (e.g.
+        // USD), not always ZAR. PayFast's amount_gross is always ZAR (it's
+        // the only currency PayFast accepts), so convert the cart total to
+        // ZAR the same way payment.php did before comparing.
+        // ----------------------------------------------------------------
         $m_payment_id = isset($pfData['m_payment_id']) ? $pfData['m_payment_id'] : null;
         $postedAmount = isset($pfData['amount_gross']) ? (float)$pfData['amount_gross'] : null;
+
+        $cartTotalOwnCurrency = null;
 
         if ($m_payment_id !== null && $postedAmount !== null) {
             try {
                 $cart = new Cart((int)$m_payment_id);
                 if (Validate::isLoadedObject($cart)) {
-                    $expectedAmount = (float)number_format($cart->getOrderTotal(true, Cart::BOTH), 2, '.', '');
-                    $bComparePassed = (abs($expectedAmount - $postedAmount) <= 0.10);
+                    $cartCurrency = new Currency((int)$cart->id_currency);
+
+                    // getOrderTotal() prices the cart using the active Context
+                    // currency, not $cart->id_currency. This IPN request comes
+                    // straight from PayFast's server with no customer session,
+                    // so Context defaults to the shop's default currency (ZAR)
+                    // unless we point it at the cart's own currency here. Without
+                    // this, the cart re-prices at conversion rate 1 (i.e. the
+                    // raw, unconverted default-currency price).
+                    $this->context->currency = $cartCurrency;
+
+                    $cartTotalOwnCurrency = (float)$cart->getOrderTotal(true, Cart::BOTH);
+
+                    $zarCurrency  = new Currency((int)Currency::getIdByIsoCode('ZAR'));
+                    $cartTotalZAR = (float)number_format(
+                        Tools::convertPriceFull($cartTotalOwnCurrency, $cartCurrency, $zarCurrency),
+                        2, '.', ''
+                    );
+
+                    $bComparePassed = (abs($cartTotalZAR - $postedAmount) <= 0.50);
                 }
             } catch (Exception $e) {
-
+                // Comparison failed; $bComparePassed stays false and the IPN is rejected below.
             }
         }
 
-        // Server-side validate with PayFast validate endpoint
+        // ----------------------------------------------------------------
+        // 4. Server-side validation with PayFast
+        // ----------------------------------------------------------------
         if (in_array('curl', get_loaded_extensions(), true)) {
             $url = 'https://' . $pfHost . '/eng/query/validate';
-            $ch = curl_init();
+            $ch  = curl_init();
             curl_setopt($ch, CURLOPT_URL, $url);
             curl_setopt($ch, CURLOPT_POST, true);
             curl_setopt($ch, CURLOPT_POSTFIELDS, $pfParamString);
@@ -118,51 +146,51 @@ class PayfastIpnModuleFrontController extends ModuleFrontController
             curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
 
             $response = curl_exec($ch);
-            $curlErr = curl_error($ch);
             curl_close($ch);
 
             if ($response !== false && trim($response) === 'VALID') {
                 $bServerPassed = true;
             }
+        }
 
-        // Final check
+        // ----------------------------------------------------------------
+        // 5. Create order if all checks pass
+        // ----------------------------------------------------------------
         if ($bSigPassed && $bDomainPassed && $bComparePassed && $bServerPassed) {
-            
-            $cart = new Cart((int)$m_payment_id);
+
+            $cart     = new Cart((int)$m_payment_id);
             $customer = new Customer($cart->id_customer);
             $order_id = Order::getOrderByCartId($cart->id);
 
             if (!$order_id) {
-                //Convert currency to zar for order
-                $fromCurrency = new Currency(Currency::getIdByIsoCode('ZAR'));
-                $toCurrency   = new Currency((int)$cart->id_currency);
+                // Record the order in the cart's own currency (e.g. USD), not
+                // in ZAR. ZAR is only what PayFast, as a gateway, requires -
+                // it must never become the order's currency of record, or
+                // ThirtyBees will re-price the order's products in ZAR at a
+                // 1:1 rate (the unconverted base price) instead of showing
+                // what the customer actually agreed to pay.
+                $orderCurrencyId = (int)$cart->id_currency;
+                $orderAmount = (float)number_format($cartTotalOwnCurrency, 2, '.', '');
 
-                $orderAmount = Tools::convertPriceFull(
-                    (float)$postedAmount,
-                    $fromCurrency,
-                    $toCurrency
-                );
-                $orderAmount = (float)number_format($orderAmount, 2, '.', '');
+                try {
+                    $this->module->validateOrder(
+                        $cart->id,
+                        Configuration::get('PS_OS_PAYMENT'),
+                        $orderAmount,
+                        $this->module->displayName,
+                        'PayFast payment successful',
+                        [],
+                        $orderCurrencyId,
+                        false,
+                        $customer->secure_key
+                    );
+                } catch (Exception $e) {
+                    // Order creation failed; $order_id stays unset/false below.
+                }
 
-
-
-                // Create order if it doesn’t exist
-                $this->module->validateOrder(
-                    $cart->id,
-                    //'Payment error',
-                    Configuration::get('PS_OS_PAYMENT'), // “Payment accepted” status
-                    $orderAmount,
-                    $this->module->displayName,
-                    'PayFast payment successful',
-                    [],
-                    null,
-                    false,
-                    $customer->secure_key
-                );
                 $order_id = Order::getOrderByCartId($cart->id);
             }
-        } 
-        exit; // ensure nothing else outputs
+        }
+        exit;
     }
-}
 }
