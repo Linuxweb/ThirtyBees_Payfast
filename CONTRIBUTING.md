@@ -1,5 +1,5 @@
 # Contributing to thirty bees
-thirty bees is an open-source e-commerce solution, forked from PrestaShop. We'd like to encourage everyone to participate in the project, including contributing your own improvements to the source code.
+ThirtyBees is an open-source e-commerce solution, forked from PrestaShop. We'd like to encourage everyone to participate in the project, including contributing your own improvements to the source code.
  
 ## Procedure
  In order to contribute to this project, you need to be familiar with Git, an open source version control system used extensively by thirty bees developers, as well as GitHub:
